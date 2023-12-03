@@ -52,19 +52,11 @@ const MembersList = () => {
               />
             </td>
             <td>{member.id}</td>
-            <td>{editMode === member.id ? renderEditableCell(member.name) : member.name}</td>
-            <td>{editMode === member.id ? renderEditableCell(member.email) : member.email}</td>
-            <td>{editMode === member.id ? renderEditableCell(member.role) : member.role}</td>
+            <td>{renderCell(member.name, 'name', member.id)}</td>
+            <td>{renderCell(member.email, 'email', member.id)}</td>
+            <td>{renderCell(member.role, 'role', member.id)}</td>
             <td>
-              {editMode !== member.id && (
-                <>
-                  <button onClick={() => enableEditMode(member)}>Edit</button>
-                  <button onClick={() => deleteRow(member.id)}>Delete</button>
-                </>
-              )}
-              {editMode === member.id && (
-                <button onClick={() => saveRow(member)}>Save</button>
-              )}
+              {renderActions(member)}
             </td>
           </tr>
         ))}
@@ -72,16 +64,40 @@ const MembersList = () => {
     );
   };
 
-  const renderEditableCell = (value) => (
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => handleEditInputChange(e.target.value)}
-    />
-  );
+  const renderCell = (value, field, memberId) => {
+    if (editMode === memberId) {
+      return <input
+        type="text"
+        value={value}
+        onChange={(e) => handleEditInputChange(e.target.value, field, memberId)}
+      />;
+    }
+    return value;
+  };
 
-  const handleEditInputChange = (value) => {
-    console.log('Editing value:', value);
+  const handleEditInputChange = (value, field, memberId) => {
+    setFilteredMembers(prevFilteredMembers =>
+      prevFilteredMembers.map(member => {
+        if (member.id === memberId) {
+          return { ...member, [field]: value };
+        }
+        return member;
+      })
+    );
+  };
+
+  const renderActions = (member) => {
+    if (editMode === member.id) {
+      return (
+        <button onClick={() => saveRow(member)}>Save</button>
+      );
+    }
+    return (
+      <>
+        <button onClick={() => enableEditMode(member)}>Edit</button>
+        <button onClick={() => deleteRow(member.id)}>Delete</button>
+      </>
+    );
   };
 
   const enableEditMode = (member) => {
@@ -89,12 +105,10 @@ const MembersList = () => {
   };
 
   const saveRow = (member) => {
-    console.log('Save row for member:', member);
     setEditMode(null);
   };
 
   const deleteRow = (id) => {
-    console.log('Delete row for id:', id);
     setMembersData(prevMembers => prevMembers.filter(member => member.id !== id));
     setFilteredMembers(prevFilteredMembers => prevFilteredMembers.filter(member => member.id !== id));
     setSelectedRows(prevSelectedRows => prevSelectedRows.filter(rowId => rowId !== id));
@@ -167,30 +181,51 @@ const MembersList = () => {
   const handleSelectAll = () => {
     setSelectedRows(prevSelectedRows => {
       if (prevSelectedRows.length === itemsPerPage * (currentPage - 1)) {
-        // Deselect all rows on the current page
-        return prevSelectedRows.filter(rowId => rowId < itemsPerPage * (currentPage - 1) + itemsPerPage);
+        // All rows on the current page are selected, so deselect all
+        return [];
       } else {
         // Select all rows on the current page
-        return [...Array(itemsPerPage * currentPage).keys()];
+        const pageStart = itemsPerPage * (currentPage - 1);
+        const pageEnd = pageStart + itemsPerPage;
+        const pageIds = filteredMembers.slice(pageStart, pageEnd).map(member => member.id);
+        return [...new Set([...prevSelectedRows, ...pageIds])];
       }
     });
   };
 
-  const selectedRowsCount = selectedRows.length;
+  const handleDeleteAllInPage = () => {
+    const pageStart = itemsPerPage * (currentPage - 1);
+    const pageEnd = pageStart + itemsPerPage;
+    const pageIds = filteredMembers.slice(pageStart, pageEnd).map(member => member.id);
 
-  const handleDeleteSelected = () => {
-    console.log('Deleting selected rows:', selectedRows);
-    // You can implement the logic to delete selected rows here
-    // For now, it will just clear the selection
+    setMembersData(prevMembers => prevMembers.filter(member => !pageIds.includes(member.id)));
+    setFilteredMembers(prevFilteredMembers => prevFilteredMembers.filter(member => !pageIds.includes(member.id)));
     setSelectedRows([]);
   };
 
+  const handleDeleteSelected = () => {
+    setMembersData(prevMembers =>
+      prevMembers.filter(member => !selectedRows.includes(member.id))
+    );
+    setFilteredMembers(prevFilteredMembers =>
+      prevFilteredMembers.filter(member => !selectedRows.includes(member.id))
+    );
+    setSelectedRows([]);
+  };
+
+  const selectedRowsCount = selectedRows.length;
+
   return (
     <div>
-      <h2 style={styles.heading}>Members List</h2>
-      <div className="search-bar" style={styles.searchBar}>
-        <label htmlFor="searchInput" style={styles.label}>Search: </label>
-        <input type="text" id="searchInput" onChange={handleSearch} style={styles.input} />
+      <h2 style={styles.heading}>Admin Dashboard</h2>
+      <div className="actions-bar" style={styles.actionsBar}>
+        <div className="search-bar" style={styles.searchBar}>
+          <label htmlFor="searchInput" style={styles.label}>Search: </label>
+          <input type="text" id="searchInput" onChange={handleSearch} style={styles.input} />
+        </div>
+        <div className="delete-all-icon" style={styles.deleteAllIcon} onClick={handleDeleteAllInPage}>
+          <img src="https://img.icons8.com/ios/50/000000/trash.png" alt="Delete All" />
+        </div>
       </div>
       <table style={styles.table}>
         <thead>
@@ -198,6 +233,7 @@ const MembersList = () => {
             <th>
               <input
                 type="checkbox"
+                checked={selectedRowsCount === itemsPerPage * (currentPage - 1)}
                 onChange={handleSelectAll}
                 style={styles.checkbox}
               />
@@ -227,11 +263,19 @@ const styles = {
     textAlign: 'center',
     color: '#007bff',
   },
+  actionsBar: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   searchBar: {
-    marginTop: '10px',
-    marginBottom: '10px',
     display: 'flex',
     alignItems: 'center',
+  },
+  deleteAllIcon: {
+    cursor: 'pointer',
+    width: '70px',
+    height: '50px',
   },
   label: {
     marginRight: '10px',
@@ -277,8 +321,9 @@ const styles = {
     color: '#555',
   },
   checkbox: {
-    backgroundColor: '#007bff',
+    cursor: 'pointer',
   },
 };
 
 export default MembersList;
+
